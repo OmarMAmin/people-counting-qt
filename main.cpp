@@ -18,54 +18,20 @@ using namespace std;
 
 image get_label(image **characters, char *string, int size);
 
-int pedesterian_counting(image im, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes)
+int count_pedesterians(int num, float thresh, float **probs, int classes)
 {
     int i;
     int counter = 0;
     for(i = 0; i < num; ++i){
+        // finding the index of the maximum probability
         int class1 = max_index(probs[i], classes);
+        // getting the value to compare with detection threshold
         float prob = probs[i][class1];
+        // person is the first label
         if(class1 != 0)
             continue;
         if(prob > thresh){
             counter++;
-//            int width = im.h * .012;
-
-//            if(0){
-//                width = pow(prob, 1./2.)*10+1;
-//                alphabet = 0;
-//            }
-
-//            printf("%s: %.0f%%\n", names[class1], prob*100);
-//            int offset = class1*123457 % classes;
-
-//            float red = get_color(2,offset,classes);
-//            float green = get_color(1,offset,classes);
-//            float blue = get_color(0,offset,classes);
-//            float rgb[3];
-
-//            //width = prob*20+2;
-
-//            rgb[0] = red;
-//            rgb[1] = green;
-//            rgb[2] = blue;
-//            box b = boxes[i];
-
-//            int left  = (b.x-b.w/2.)*im.w;
-//            int right = (b.x+b.w/2.)*im.w;
-//            int top   = (b.y-b.h/2.)*im.h;
-//            int bot   = (b.y+b.h/2.)*im.h;
-
-//            if(left < 0) left = 0;
-//            if(right > im.w-1) right = im.w-1;
-//            if(top < 0) top = 0;
-//            if(bot > im.h-1) bot = im.h-1;
-
-//            draw_box_width(im, left, top, right, bot, width, red, green, blue);
-//            if (alphabet) {
-//                image label = get_label(alphabet, names[class1], (im.h*.03)/10);
-//                draw_label(im, top + width, left, label, rgb);
-//            }
         }
     }
     return counter;
@@ -123,40 +89,31 @@ IplImage* image_to_Ipl(image img, int w, int h, int depth, int c, int step)
    return src;
 }
 
-int extractimages(int limit)
-{
-    VideoCapture cap("/home/omaramin/Desktop/dark/TownCentreXVID.avi"); // open the default camera
-    if(!cap.isOpened())  // check if we succeeded
-        return -1;
-
-    namedWindow("edges",1);
-    int cntr = 0;
-    for(;cntr<limit;cntr++)
-    {
-        Mat frame;
-        cap >> frame; // get a new frame from camera
-
-        std::string savingName = "/home/omaramin/Desktop/dark/Images/" + std::to_string(++cntr) + ".jpg";
-        cv::imwrite(savingName, frame);
-    }
-}
 
 
-int main(int, char**)
+void pedesterian_counting_demo(string inputvideo,string outputvideo, int framescount)
 {
     char * cfgfile = "cfg/yolo.cfg";
     char * weightfile = "yolo.weights";
     char * datacfg = "cfg/coco.data";
     list *options = read_data_cfg(datacfg);
     char *name_list = option_find_str(options, "names", "data/names.list");
-    char **names = get_labels(name_list);
+    //char **names = get_labels(name_list);
     float thresh= 0.24;
     float hier_thresh = 0.5;
 
-    // outputvideo
-    VideoWriter out_capture("out.avi", CV_FOURCC('M','J','P','G'), 30, Size(1920,1080));
 
-    image **alphabet = load_alphabet();
+    // reading input video
+    VideoCapture cap(inputvideo);
+
+    Mat temp;
+    cap>>temp;
+
+
+    // outputvideo
+    VideoWriter out_capture(outputvideo, CV_FOURCC('M','J','P','G'), 30, Size(temp.cols/2,temp.rows/2));
+
+    //image **alphabet = load_alphabet();
     network net = parse_network_cfg(cfgfile);
     if(weightfile){
         load_weights(&net, weightfile);
@@ -166,17 +123,25 @@ int main(int, char**)
     clock_t time;
     int j;
     float nms=.4;
-    for( int counter = 1;counter < 6;counter+=2)
+
+
+
+
+//    for( int counter = 1;counter < 6;counter+=2)
+//    {
+    for(int i = 0; i< framescount;i++)
     {
-        string basestr = "Images/";
-        string imgname = to_string(counter) + ".jpg";
+        string basestr = "Frame#";
+        string imgname = to_string(i) + ":";
         string filenamestr =(basestr+imgname);
         char *filename = new char[filenamestr.length() + 1];
         strcpy(filename, filenamestr.c_str());
 
 
         // reading the Mat variable
-        Mat cvimage = imread(filenamestr,1);
+        Mat cvimage;// = imread(filenamestr,1);
+        cap>>cvimage;
+
         cvtColor(cvimage,cvimage,CV_BGR2RGB);
         IplImage* iplimg = new IplImage(cvimage);
         image im = ipl_to_image(iplimg);
@@ -196,7 +161,7 @@ int main(int, char**)
         get_region_boxes(l, 1, 1, thresh, probs, boxes, 0, 0, hier_thresh);
         if (l.softmax_tree && nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         else if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, l.classes, nms);
-        int currentcount = pedesterian_counting(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
+        int currentcount = count_pedesterians(l.w*l.h*l.n, thresh, probs, l.classes);
         IplImage* iplimgafter = image_to_Ipl(im,im.w,im.h,IPL_DEPTH_8U,im.c,iplimg->widthStep);
         cv::Mat cvimgafter = cv::cvarrToMat(iplimgafter);
         free_image(im);
@@ -214,13 +179,31 @@ int main(int, char**)
         putText(cvimgafter, counterstr, textTL,
             FONT_HERSHEY_COMPLEX_SMALL, 1.2, Scalar(255,255,255), 1, CV_AA);
 
+
+        // each frame would take a second in the output video
+        resize(cvimgafter,cvimgafter,Size(cvimgafter.cols/2,cvimgafter.rows/2));
         imshow("People Counting",cvimgafter);
         waitKey(1000);
-        // each frame would take a second in the output video
         for(int i =0;i<30;i++)
             out_capture.write(cvimgafter);
 
     }
 
+}
+
+
+int main(int argc, char**argv)
+{
+    string inputvideo = "../TownCentreXVID.avi";
+    string outputvideo = "../output_sample.avi";
+    int framescount = 10;
+    if(argc >= 2)
+        inputvideo = argv[1];
+    if(argc >= 3)
+        outputvideo = argv[2];
+    if(argc >= 4)
+        framescount = atoi(argv[3]);
+
+    pedesterian_counting_demo(inputvideo,outputvideo,framescount);
     return 0;
 }
