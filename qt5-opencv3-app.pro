@@ -22,7 +22,7 @@ TARGET = qt5_opencv3_darknet
 CONFIG += console
 CONFIG -= app_bundle
 
-INCLUDEPATH += /home/omaramin/Desktop/darknet-qt/src/
+INCLUDEPATH += ../darknet-qt/src/
 
 LIBS += \ 
     -L/usr/local/lib  \
