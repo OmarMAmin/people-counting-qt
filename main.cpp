@@ -182,8 +182,6 @@ void pedesterian_counting_demo(string inputvideo,string outputvideo, int framesc
 
         // each frame would take a second in the output video
         resize(cvimgafter,cvimgafter,Size(cvimgafter.cols/2,cvimgafter.rows/2));
-        imshow("People Counting",cvimgafter);
-        waitKey(1000);
         for(int i =0;i<30;i++)
             out_capture.write(cvimgafter);
 
